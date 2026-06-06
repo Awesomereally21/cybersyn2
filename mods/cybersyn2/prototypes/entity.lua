@@ -120,6 +120,10 @@ local flags = combinator_entity.flags or {}
 table.insert(flags, "hide-alt-info")
 combinator_entity.flags = flags
 
+if mods["nullius"] then
+       combinator_entity.localised_name = { "entity-name.cybersyn2-combinator" }
+end
+
 ---@diagnostic disable-next-line: undefined-global
 combinator_entity.sprites = make_4way_animation_from_spritesheet({
 	layers = {
