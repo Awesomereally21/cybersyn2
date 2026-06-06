@@ -37,10 +37,10 @@ if mods["nullius"] then
        -- In Nullius, most combinators are tiny crafts
        combinator_recipe.category = "tiny-crafting"
        combinator_recipe.always_show_made_in = true
-       combinator_recipe.energy_required = 10
+       combinator_recipe.energy_required = 3
        combinator_recipe.ingredients = {
-               { "arithmetic-combinator", 2 },
-               { "copper-cable", 10 },
+               { type = "item", name = "arithmetic-combinator", amount = 2 },
+               { type = "item", name = "copper-cable", amount = 10 },
        }
        -- Enable technology
        cybersyn_tech.order = "nullius-" .. cybersyn_tech.order
