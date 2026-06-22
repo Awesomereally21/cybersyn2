@@ -1,7 +1,14 @@
 ---------------------------------------------------------------------------------------------------
-Version: 0.1.8
+Version: 0.1.9
 Date: ????
-  Changes:
+  Bugfixes:
+    - Fixed a crash related to stuck train alerts on invalid trains.
+    - Fixed a crash in the Node GUI for stops with no rails.
+---------------------------------------------------------------------------------------------------
+Version: 0.1.8
+Date: 2026-06-22
+  Bugfixes:
+    - Fixed an on_load crash when a pinned GUI was open on save.
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.7
 Date: 2026-06-21
