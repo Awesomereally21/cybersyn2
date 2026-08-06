@@ -203,7 +203,7 @@ scheduler.register_handler("check_elevator", function(task)
 	if (not entity) or not entity.valid then return end
 	local created = make_elevator_from_core_entity(entity)
 	if created then
-		-- Make CS2 retopologize accounting for elevators
+		invalidate_topology_cache()
 		remote.call("cybersyn2", "rebuild_train_topologies")
 	end
 end)

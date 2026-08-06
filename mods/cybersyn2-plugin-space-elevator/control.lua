@@ -111,22 +111,112 @@ local function transit_complete(previous_luatrain_id, new_luatrain)
 	)
 end
 
-remote.add_interface("cybersyn2-plugin-space-elevator", {
-	["train_topology_callback"] =
-		---@param surface_index uint64 Surface index to query
-		function(surface_index)
-			-- Return a SET of surfaces connected to this one via space elevators.
-			local surface_elevators = storage.elevators_by_surface[surface_index]
-				or EMPTY
-			local surface_set = {}
-			for _, elevator in pairs(surface_elevators) do
-				if is_elevator_valid(elevator) then
-					surface_set[elevator.opposite_end.surface_index] = true
+--------------------------------------------------------------------------------
+-- Topology plugins (v0.2.2+)
+--
+-- Each elevator connects a planet/moon to its orbit. We create one topology
+-- per such pair, named "se-elevator:<planet_name>". Both the planet surface
+-- and the orbit surface return the same topology ID, so the dispatcher sees
+-- stations on both surfaces as reachable candidates.
+--
+-- Surfaces WITHOUT an elevator get nil (no override), so they keep their
+-- default per-surface topology and remain isolated.
+--------------------------------------------------------------------------------
+
+---Cache: surface_index -> topology_id (or false if no elevator on surface)
+local surface_topology_cache = {}
+
+---Get or create the elevator topology for a given surface.
+---Returns nil if this surface has no valid elevators.
+---@param surface_index uint32
+---@return Id? topology_id
+local function get_topology_for_surface(surface_index)
+	local cached = surface_topology_cache[surface_index]
+	if cached == false then return nil end
+	if cached then return cached end
+
+	-- Check if this surface has elevators
+	local surface_elevators = storage.elevators_by_surface[surface_index]
+	if not surface_elevators then
+		surface_topology_cache[surface_index] = false
+		return nil
+	end
+
+	-- Find any valid elevator to determine the pair name
+	for _, elevator in pairs(surface_elevators) do
+		if is_elevator_valid(elevator) then
+			-- Use the planet-side surface name as the topology key.
+			-- Both sides of an elevator share the same topology.
+			local planet_surface_index = elevator.surface_index
+			local orbit_surface_index = elevator.opposite_end.surface_index
+
+			-- Determine which side is the planet by checking SE zone type.
+			-- The planet name is more stable; query it from the surface itself.
+			local zone = remote.call(
+				"space-exploration",
+				"get_zone_from_surface_index",
+				{ surface_index = surface_index }
+			)
+			local topo_name
+			if zone then
+				if zone.type == "orbit" and zone.parent_index then
+					-- We're on the orbit side; get parent planet name
+					local parent = remote.call(
+						"space-exploration",
+						"get_zone_from_zone_index",
+						{ zone_index = zone.parent_index }
+					)
+					topo_name = parent and parent.name or zone.name
 				else
-					invalidate_elevator(elevator)
+					-- We're on the planet/moon side
+					topo_name = zone.name
 				end
 			end
-			return surface_set
+
+			if not topo_name then
+				-- Fallback: use a combined name from both surface indices
+				topo_name = planet_surface_index .. "-" .. orbit_surface_index
+			end
+
+			local full_name = "se-elevator:" .. topo_name
+			local topo_id =
+				remote.call("cybersyn2", "get_or_create_topology", full_name, {
+					-- surface indices so manager can select correct topology by default
+					planet_surface_index,
+					orbit_surface_index
+				})
+			-- Cache for both sides of this pair
+			surface_topology_cache[planet_surface_index] = topo_id
+			surface_topology_cache[orbit_surface_index] = topo_id
+			return topo_id
+		end
+	end
+
+	surface_topology_cache[surface_index] = false
+	return nil
+end
+
+---Invalidate the topology cache (called on elevator rebuild).
+function _G.invalidate_topology_cache() surface_topology_cache = {} end
+
+remote.add_interface("cybersyn2-plugin-space-elevator", {
+	["node_topology_callback"] =
+		---@param node_id Id
+		---@param train_stop LuaEntity?
+		---@return Id? topology_id
+		function(node_id, train_stop)
+			if not train_stop or not train_stop.valid then return nil end
+			return get_topology_for_surface(train_stop.surface_index)
+		end,
+	["vehicle_topology_callback"] =
+		---@param vehicle_id Id
+		---@param lua_train LuaTrain?
+		---@return Id? topology_id
+		function(vehicle_id, lua_train)
+			if not lua_train or not lua_train.valid then return nil end
+			local stock = lua_train.front_stock
+			if not stock then return nil end
+			return get_topology_for_surface(stock.surface_index)
 		end,
 	["reachable_callback"] =
 		---@param from_stop LuaEntity
@@ -239,11 +329,11 @@ local function bind_se_events()
 	)
 
 	events.bind(
-		remote.call("space-exploration", "get_on_train_teleport_finished_event"),
+		defines.events.se_on_train_teleport_finished,
 		on_train_teleport_finished
 	)
 	events.bind(
-		remote.call("space-exploration", "get_on_train_teleport_started_event"),
+		defines.events.se_on_train_teleport_started,
 		on_train_teleport_started
 	)
 end
