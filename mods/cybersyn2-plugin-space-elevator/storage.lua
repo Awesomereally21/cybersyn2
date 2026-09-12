@@ -5,6 +5,8 @@ local events = require("__cybersyn2__.lib.core.event")
 ---@field public delivery_id uint64 Cybersyn Delivery ID
 ---@field public vehicle_id int64 Cybersyn Train ID
 ---@field public previous_group string Pre-transit group name.
+---@field public continuation_stop_name string? Station to continue to after transit. Used as fallback so we never leave the train schedule-less.
+---@field public elevator_stop_name string? Elevator stop used for transit (debug/fallback).
 
 ---@class CS2.SpaceElevatorPlugin.Elevator
 ---@field public unit_number uint64 The unit number of the stop entity.
